@@ -18,60 +18,52 @@ public class ChatServer extends WebSocketServer {
         try {
             // Твоя ссылка из MongoDB Atlas
             String connectionString = "mongodb+srv://exozoda_db_user:ZTiXr6lp6Mk40zr8@exozoda.n9uxxlh.mongodb.net/?appName=EXOZODA";
-
             MongoClient mongoClient = MongoClients.create(connectionString);
             MongoDatabase database = mongoClient.getDatabase("ExogrammDB");
             usersCollection = database.getCollection("users");
-            System.out.println(">>> Успешно подключено к MongoDB Atlas!");
+            System.out.println(">>> MongoDB подключена!");
         } catch (Exception e) {
-            System.err.println("!!! Ошибка подключения к БД: " + e.getMessage());
+            System.err.println("!!! Ошибка БД: " + e.getMessage());
         }
     }
 
     @Override
     public void onOpen(WebSocket conn, ClientHandshake handshake) {
-        System.out.println("Новый клиент в сети: " + conn.getRemoteSocketAddress());
+        System.out.println("Новое подключение");
     }
 
     @Override
     public void onMessage(WebSocket conn, String message) {
-        try {
-            JSONObject json = new JSONObject(message);
-            String type = json.getString("type");
+        JSONObject json = new JSONObject(message);
+        if (json.getString("type").equals("register")) {
+            String email = json.getString("email");
+            String pass = json.getString("password");
+            Document user = usersCollection.find(Filters.eq("email", email)).first();
 
-            if (type.equals("register")) {
-                String email = json.getString("email");
-                String pass = json.getString("password");
-
-                Document user = usersCollection.find(Filters.eq("email", email)).first();
-
-                if (user == null) {
-                    usersCollection.insertOne(new Document("email", email).append("password", pass));
-                    sendSystemMessage(conn, "Аккаунт создан и сохранен в БД!");
-                } else if (user.getString("password").equals(pass)) {
-                    sendSystemMessage(conn, "Вход выполнен успешно!");
-                } else {
-                    sendSystemMessage(conn, "Ошибка: неверный пароль!");
-                }
-            } else if (type.equals("chat")) {
-                broadcast(message);
+            if (user == null) {
+                usersCollection.insertOne(new Document("email", email).append("password", pass));
+                sendSystemMessage(conn, "Регистрация успешна!");
+            } else if (user.getString("password").equals(pass)) {
+                sendSystemMessage(conn, "Вход выполнен!");
+            } else {
+                sendSystemMessage(conn, "Неверный пароль!");
             }
-        } catch (Exception e) {
-            System.err.println("Ошибка обработки данных: " + e.getMessage());
+        } else {
+            broadcast(message);
         }
     }
 
     private void sendSystemMessage(WebSocket conn, String text) {
-        conn.send(new JSONObject()
-                .put("type", "chat")
-                .put("user", "Система")
-                .put("text", text)
-                .toString());
+        JSONObject resp = new JSONObject();
+        resp.put("type", "chat");
+        resp.put("user", "Система");
+        resp.put("text", text);
+        conn.send(resp.toString());
     }
 
     @Override public void onClose(WebSocket conn, int code, String reason, boolean remote) {}
     @Override public void onError(WebSocket conn, Exception ex) {}
-    @Override public void onStart() { System.out.println("Сервер Exogramm активен на порту: " + getPort()); }
+    @Override public void onStart() { System.out.println("Сервер запущен!"); }
 
     public static void main(String[] args) {
         int port = Integer.parseInt(System.getenv().getOrDefault("PORT", "8080"));

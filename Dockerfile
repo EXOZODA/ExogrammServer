@@ -1,13 +1,12 @@
-# Используем стабильный образ Java 17
-FROM eclipse-temurin:17-jdk
-
+# Используем образ с Maven для сборки
+FROM maven:3.8.4-openjdk-17 as builder
 WORKDIR /app
-
-# Копируем файлы проекта
 COPY . .
+RUN mvn clean package -DskipTests
 
-# Компилируем сервер
-RUN javac src/main/java/ChatServer.java
-
-# Запускаем сервер, указывая папку с классами
-CMD ["java", "-cp", "src/main/java", "ChatServer"]
+# Используем легкий образ Java для запуска
+FROM openjdk:17-jdk-slim
+WORKDIR /app
+COPY --from=builder /app/target/EXOGRAMM-1.0-SNAPSHOT.jar app.jar
+EXPOSE 8080
+CMD ["java", "-jar", "app.jar"]
